@@ -1,1 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dinosaurs and Soldiers</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game" width="960" height="540"></canvas>
+      <div id="ui">
+        <div id="menu">
+          <h1 data-i18n="title">Dinosaurs and Soldiers</h1>
+          <button id="btnStart" data-i18n="start">Start Mission 1</button>
+          <button id="btnCharacters" data-i18n="characters">Choose Character</button>
+          <button id="btnControls" data-i18n="controls">Controls</button>
+          <button id="btnLanguage" data-i18n="language">Language</button>
+        </div>
 
+        <div id="characterMenu" class="panel hidden">
+          <h2 data-i18n="chooseCharacter">Choose Your Soldier</h2>
+          <div class="character-grid">
+            <button class="char" data-char="nova">Nova</button>
+            <button class="char" data-char="rex">Rex</button>
+            <button class="char" data-char="talon">Talon</button>
+          </div>
+          <button class="back" data-i18n="back">Back</button>
+        </div>
+
+        <div id="controlsMenu" class="panel hidden">
+          <h2 data-i18n="controls">Controls</h2>
+          <ul>
+            <li>←/→: Move</li>
+            <li>↑/Space: Jump</li>
+            <li>Z: Shoot</li>
+            <li>X: Special</li>
+            <li>Esc/P: Pause</li>
+          </ul>
+          <button class="back" data-i18n="back">Back</button>
+        </div>
+
+        <div id="languageMenu" class="panel hidden">
+          <h2 data-i18n="language">Language</h2>
+          <div class="lang-grid">
+            <button class="lang" data-lang="en">English</button>
+            <button class="lang" data-lang="es">Español</button>
+            <button class="lang" data-lang="fr">Français</button>
+            <button class="lang" data-lang="it">Italiano</button>
+            <button class="lang" data-lang="pt">Português</button>
+          </div>
+          <button class="back" data-i18n="back">Back</button>
+        </div>
+
+        <div id="hud" class="hidden">
+          <div id="hudLeft">
+            <span id="hudChar">Nova</span>
+            <span id="hudHealth">HP: 100</span>
+          </div>
+          <div id="hudRight">
+            <span id="hudLives" data-i18n="lives">Lives</span>: <span id="hudLivesVal">3</span>
+            <span> | </span>
+            <span id="hudScore" data-i18n="score">Score</span>: <span id="hudScoreVal">0</span>
+          </div>
+        </div>
+
+        <div id="pause" class="hidden panel">
+          <h2 data-i18n="paused">Paused</h2>
+          <button id="btnResume" data-i18n="resume">Resume</button>
+          <button id="btnQuit" data-i18n="quit">Quit</button>
+        </div>
+
+        <div id="gameOver" class="hidden panel">
+          <h2 id="gameOverTitle">Game Over</h2>
+          <p id="gameOverDesc"></p>
+          <button id="btnRetry" data-i18n="retry">Retry</button>
+          <button id="btnBackToMenu" data-i18n="backToMenu">Back to Menu</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="./src/i18n.js"></script>
+    <script src="./src/main.js"></script>
+  </body>
+</html>
