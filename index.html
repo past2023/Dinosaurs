@@ -218,7 +218,8 @@
         
         <div class="hud" id="hud">
             <div id="healthBar">Health: <span id="health">100</span></div>
-            <div id="ammoBar">Ammo: <span id="ammo">999</span></div>
+            <div id="grenadeBar">Grenades: <span id="grenades">5</span></div>
+            <div id="laserBar">Laser Ammo: <span id="laserAmmo">5</span></div>
             <div id="scoreBar">Score: <span id="score">0</span></div>
             <div id="missionProgress">Mission Progress: <span id="progress">0</span>%</div>
         </div>
@@ -263,7 +264,7 @@
                         <div data-lang="speed">Speed: ★★★★★</div>
                         <div data-lang="power">Power: ★★★★☆</div>
                         <div data-lang="health">Health: ★★☆☆☆</div>
-                        <div data-lang="special">Special: Double Jump</div>
+                        <div data-lang="special">Special: Balanced</div>
                     </div>
                 </div>
             </div>
@@ -516,7 +517,7 @@
                 health: 80,
                 fireRate: 200,
                 damage: 20,
-                special: 'doubleJump'
+                special: 'balanced'
             }
         };
 
@@ -536,7 +537,7 @@
             score: 0,
             enemiesKilled: 0,
             missionProgress: 0,
-            missionLength: 8000,
+            missionLength: 16000,
             keys: {},
             lastShot: 0,
             chargeStartTime: 0,
@@ -635,9 +636,11 @@
                 this.grounded = false;
                 this.crouching = false;
                 this.jumps = 0;
-                this.maxJumps = stats.special === 'doubleJump' ? 2 : 1;
+                this.maxJumps = 2; // All characters can double jump
                 this.inVehicle = false;
                 this.vehicle = null;
+                this.grenadeAmmo = 5;
+                this.laserAmmo = 5;
             }
 
             update() {
@@ -789,17 +792,22 @@
             }
 
             shootLaser() {
+                if (this.laserAmmo <= 0) return;
+                
                 const laserY = this.y + 20;
                 const laserX = this.x + (this.direction > 0 ? this.width : 0);
+                
+                this.laserAmmo--;
                 
                 game.lasers.push({
                     x: laserX,
                     y: laserY,
-                    width: 400,
+                    width: 80,
                     height: 15,
+                    vx: this.direction * 18,
                     direction: this.direction,
                     damage: this.damage * 3,
-                    life: 20,
+                    life: 100,
                     owner: 'player'
                 });
             }
@@ -820,6 +828,10 @@
             }
 
             throwGrenade() {
+                if (this.grenadeAmmo <= 0) return;
+                
+                this.grenadeAmmo--;
+                
                 game.grenades.push({
                     x: this.x + this.width / 2,
                     y: this.y + 10,
@@ -1260,10 +1272,12 @@
                         createParticles(bullet.x, bullet.y, '#FF6600', 5);
                         
                         if (game.vehicle.health <= 0) {
+                            // Player exits vehicle and continues with remaining health
                             game.player.inVehicle = false;
                             game.player.x = game.vehicle.x + 50;
+                            game.player.y = game.vehicle.y;
+                            createParticles(game.vehicle.x + game.vehicle.width / 2, game.vehicle.y + game.vehicle.height / 2, '#FF4500', 30);
                             game.vehicle = null;
-                            createParticles(game.player.x, game.player.y, '#FF4500', 30);
                         }
                         
                         return false;
@@ -1276,24 +1290,27 @@
             // Update lasers
             game.lasers = game.lasers.filter(laser => {
                 laser.life--;
+                laser.x += laser.vx;
                 
                 // Check all enemies hit by laser
                 game.enemies.forEach(enemy => {
                     const laserBox = {
                         x: laser.x,
                         y: laser.y - laser.height / 2,
-                        width: laser.width * laser.direction,
+                        width: laser.width,
                         height: laser.height
                     };
                     
-                    if (checkCollision(laserBox, enemy) && !enemy.hitByLaser) {
-                        enemy.hitByLaser = true;
-                        enemy.health -= laser.damage;
-                        createParticles(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, '#00FFFF', 10);
-                        
-                        if (enemy.health <= 0) {
-                            game.score += enemy.points;
-                            game.enemiesKilled++;
+                    if (checkCollision(laserBox, enemy)) {
+                        if (!enemy.laserHitFrame || enemy.laserHitFrame < game.time - 5) {
+                            enemy.laserHitFrame = game.time;
+                            enemy.health -= laser.damage;
+                            createParticles(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, '#00FFFF', 10);
+                            
+                            if (enemy.health <= 0) {
+                                game.score += enemy.points;
+                                game.enemiesKilled++;
+                            }
                         }
                     }
                 });
@@ -1303,14 +1320,15 @@
                     const laserBox = {
                         x: laser.x,
                         y: laser.y - laser.height / 2,
-                        width: laser.width * laser.direction,
+                        width: laser.width,
                         height: laser.height
                     };
                     
                     if (checkCollision(laserBox, game.boss)) {
-                        game.boss.health -= laser.damage * 0.1; // Damage per frame
-                        if (game.time % 3 === 0) {
-                            createParticles(game.boss.x + Math.random() * game.boss.width, game.boss.y + Math.random() * game.boss.height, '#00FFFF', 3);
+                        if (!laser.bossHitFrame || laser.bossHitFrame < game.time - 5) {
+                            laser.bossHitFrame = game.time;
+                            game.boss.health -= laser.damage;
+                            createParticles(game.boss.x + Math.random() * game.boss.width, game.boss.y + Math.random() * game.boss.height, '#00FFFF', 8);
                         }
                     }
                 }
@@ -1392,8 +1410,25 @@
                 game.bossSpawned = true;
             }
 
+            // Update platforms
+            game.platforms.forEach(platform => {
+                // Check if player is on platform
+                if (game.player.vy >= 0 && 
+                    game.player.x + game.player.width > platform.x &&
+                    game.player.x < platform.x + platform.width &&
+                    game.player.y + game.player.height >= platform.y &&
+                    game.player.y + game.player.height <= platform.y + 20) {
+                    game.player.y = platform.y - game.player.height;
+                    game.player.vy = 0;
+                    game.player.grounded = true;
+                    game.player.jumps = 0;
+                }
+            });
+
             // Update HUD
             document.getElementById('health').textContent = Math.max(0, Math.floor(game.player.health));
+            document.getElementById('grenades').textContent = game.player.grenadeAmmo;
+            document.getElementById('laserAmmo').textContent = game.player.laserAmmo;
             document.getElementById('score').textContent = game.score;
             document.getElementById('progress').textContent = Math.floor(game.missionProgress);
 
@@ -1438,17 +1473,29 @@
                     ctx.fillRect(screenX, bullet.y, bullet.width, bullet.height);
                 });
                 
+                // Draw platforms
+                game.platforms.forEach(platform => {
+                    const screenX = platform.x - game.camera.x;
+                    if (screenX > -platform.width && screenX < canvas.width) {
+                        ctx.fillStyle = '#654321';
+                        ctx.fillRect(screenX, platform.y, platform.width, platform.height);
+                        // Platform edge
+                        ctx.fillStyle = '#8B6F47';
+                        ctx.fillRect(screenX, platform.y, platform.width, 5);
+                    }
+                });
+                
                 // Draw lasers
                 game.lasers.forEach(laser => {
                     const screenX = laser.x - game.camera.x;
                     ctx.fillStyle = '#00FFFF';
                     ctx.globalAlpha = 0.8;
-                    ctx.fillRect(screenX, laser.y - laser.height / 2, laser.width * laser.direction, laser.height);
+                    ctx.fillRect(screenX, laser.y - laser.height / 2, laser.width, laser.height);
                     
                     // Laser glow effect
                     ctx.fillStyle = '#FFFFFF';
                     ctx.globalAlpha = 0.4;
-                    ctx.fillRect(screenX, laser.y - laser.height / 4, laser.width * laser.direction, laser.height / 2);
+                    ctx.fillRect(screenX, laser.y - laser.height / 4, laser.width, laser.height / 2);
                     ctx.globalAlpha = 1;
                 });
 
@@ -1479,6 +1526,32 @@
             requestAnimationFrame(gameLoop);
         }
 
+        // Generate platforms
+        function generatePlatforms() {
+            const platforms = [];
+            const missionLength = game.missionLength;
+            
+            // Create platforms throughout the mission
+            for (let x = 500; x < missionLength; x += 400 + Math.random() * 300) {
+                const width = 100 + Math.random() * 150;
+                const height = 20;
+                const y = 300 + Math.random() * 100;
+                
+                platforms.push({ x, y, width, height });
+            }
+            
+            // Add some higher platforms
+            for (let x = 800; x < missionLength; x += 600 + Math.random() * 400) {
+                const width = 80 + Math.random() * 100;
+                const height = 20;
+                const y = 200 + Math.random() * 50;
+                
+                platforms.push({ x, y, width, height });
+            }
+            
+            return platforms;
+        }
+
         // Start Game
         function startGame(characterType) {
             game.state = 'playing';
@@ -1488,6 +1561,7 @@
             game.lasers = [];
             game.grenades = [];
             game.particles = [];
+            game.platforms = generatePlatforms();
             game.vehicle = null;
             game.boss = null;
             game.vehicleSpawned = false;
