@@ -531,6 +531,7 @@
             grenades: [],
             particles: [],
             explosions: [],
+            items: [],
             vehicle: null,
             boss: null,
             camera: { x: 0, y: 0 },
@@ -835,9 +836,11 @@
                 game.grenades.push({
                     x: this.x + this.width / 2,
                     y: this.y + 10,
-                    vx: this.direction * 8,
-                    vy: -10,
-                    timer: 60,
+                    vx: this.direction * 10,
+                    vy: -15,
+                    rotation: 0,
+                    timer: 90,
+                    bounces: 0,
                     owner: 'player'
                 });
             }
@@ -886,19 +889,55 @@
                 this.type = type;
                 this.x = x;
                 this.y = y;
+                this.startX = x;
                 this.width = type === 'soldier' ? 35 : type === 'raptor' ? 50 : 60;
                 this.height = type === 'soldier' ? 45 : type === 'raptor' ? 40 : 70;
-                this.vx = type === 'raptor' ? -4 : -2;
+                this.baseSpeed = type === 'raptor' ? 4 : 2;
+                this.vx = -this.baseSpeed;
                 this.vy = 0;
                 this.health = type === 'soldier' ? 30 : type === 'raptor' ? 50 : 80;
+                this.maxHealth = this.health;
                 this.damage = type === 'soldier' ? 10 : type === 'raptor' ? 15 : 20;
                 this.lastShot = 0;
-                this.fireRate = type === 'soldier' ? 1000 : 2000;
+                this.fireRate = type === 'soldier' ? 1500 : 2000;
                 this.points = type === 'soldier' ? 100 : type === 'raptor' ? 200 : 300;
+                this.patrolRange = 200;
+                this.patrolMode = Math.random() < 0.7;
+                this.direction = -1;
             }
 
             update() {
-                // Move towards player
+                const distToPlayer = this.x - game.player.x;
+                
+                // Patrol behavior for soldiers
+                if (this.patrolMode && this.type === 'soldier') {
+                    if (distToPlayer < 600 && distToPlayer > 200) {
+                        if (this.x > this.startX - this.patrolRange) {
+                            this.vx = -this.baseSpeed;
+                            this.direction = -1;
+                        } else {
+                            this.vx = this.baseSpeed;
+                            this.direction = 1;
+                        }
+                        
+                        if (this.x < this.startX - this.patrolRange) {
+                            this.vx = this.baseSpeed;
+                            this.direction = 1;
+                        } else if (this.x > this.startX) {
+                            this.vx = -this.baseSpeed;
+                            this.direction = -1;
+                        }
+                    } else if (distToPlayer <= 200) {
+                        this.vx = this.baseSpeed;
+                        this.direction = 1;
+                    } else {
+                        this.vx = 0;
+                    }
+                } else {
+                    this.vx = -this.baseSpeed;
+                    this.direction = -1;
+                }
+                
                 this.x += this.vx;
 
                 // Raptor jumps
@@ -918,8 +957,15 @@
 
                 // Shoot at player
                 if (this.type === 'soldier' && Date.now() - this.lastShot > this.fireRate) {
-                    const dist = Math.abs(this.x - game.player.x);
-                    if (dist < 500 && dist > 100) {
+                    if (distToPlayer < 600 && distToPlayer > 50) {
+                        this.shoot();
+                        this.lastShot = Date.now();
+                    }
+                }
+                
+                // T-Rex can also shoot
+                if (this.type === 'trex' && Date.now() - this.lastShot > this.fireRate) {
+                    if (distToPlayer < 700 && distToPlayer > 100) {
                         this.shoot();
                         this.lastShot = Date.now();
                     }
@@ -933,7 +979,10 @@
                 game.bullets.push({
                     x: this.x,
                     y: this.y + this.height / 2,
+                    width: 8,
+                    height: 8,
                     vx: -8,
+                    vy: 0,
                     damage: this.damage,
                     owner: 'enemy'
                 });
@@ -969,8 +1018,65 @@
                 ctx.fillStyle = '#FF0000';
                 ctx.fillRect(screenX, this.y - 10, this.width, 5);
                 ctx.fillStyle = '#00FF00';
-                const healthWidth = (this.health / (this.type === 'soldier' ? 30 : this.type === 'raptor' ? 50 : 80)) * this.width;
+                const healthWidth = (this.health / this.maxHealth) * this.width;
                 ctx.fillRect(screenX, this.y - 10, healthWidth, 5);
+            }
+        }
+
+        // Item Class
+        class Item {
+            constructor(type, x, y) {
+                this.type = type;
+                this.x = x;
+                this.y = y;
+                this.width = 20;
+                this.height = 20;
+                this.vy = -5;
+                this.life = 300;
+            }
+
+            update() {
+                this.vy += 0.5;
+                this.y += this.vy;
+
+                if (this.y >= 460) {
+                    this.y = 460;
+                    this.vy = 0;
+                }
+
+                this.life--;
+                return this.life > 0;
+            }
+
+            draw(ctx) {
+                const screenX = this.x - game.camera.x;
+                
+                if (this.type === 'health') {
+                    ctx.fillStyle = '#FF0000';
+                    ctx.fillRect(screenX, this.y, this.width, this.height);
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(screenX + 8, this.y + 4, 4, 12);
+                    ctx.fillRect(screenX + 4, this.y + 8, 12, 4);
+                } else if (this.type === 'grenade') {
+                    ctx.fillStyle = '#4A5D23';
+                    ctx.fillRect(screenX, this.y, this.width, this.height);
+                    ctx.fillStyle = '#FFD700';
+                    ctx.font = 'bold 16px Courier New';
+                    ctx.fillText('G', screenX + 5, this.y + 15);
+                } else if (this.type === 'laser') {
+                    ctx.fillStyle = '#00FFFF';
+                    ctx.fillRect(screenX, this.y, this.width, this.height);
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.font = 'bold 16px Courier New';
+                    ctx.fillText('L', screenX + 6, this.y + 15);
+                }
+                
+                if (this.life < 60 && Math.floor(this.life / 10) % 2 === 0) {
+                    ctx.globalAlpha = 0.5;
+                    ctx.fillStyle = '#FFFF00';
+                    ctx.fillRect(screenX - 2, this.y - 2, this.width + 4, this.height + 4);
+                    ctx.globalAlpha = 1;
+                }
             }
         }
 
@@ -1148,6 +1254,24 @@
             }
         }
 
+        // Item Drop System
+        function dropItem(x, y) {
+            const roll = Math.random();
+            let itemType;
+            
+            if (roll < 0.3) {
+                itemType = 'health';
+            } else if (roll < 0.6) {
+                itemType = 'grenade';
+            } else if (roll < 0.85) {
+                itemType = 'laser';
+            } else {
+                return;
+            }
+            
+            game.items.push(new Item(itemType, x - 10, y - 10));
+        }
+
         // Particle Effect
         function createParticles(x, y, color, count = 10) {
             for (let i = 0; i < count; i++) {
@@ -1238,6 +1362,7 @@
                                 game.score += enemy.points;
                                 game.enemiesKilled++;
                                 createParticles(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, '#FFD700', 15);
+                                dropItem(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
                             }
                             
                             return false;
@@ -1310,6 +1435,7 @@
                             if (enemy.health <= 0) {
                                 game.score += enemy.points;
                                 game.enemiesKilled++;
+                                dropItem(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
                             }
                         }
                     }
@@ -1336,17 +1462,49 @@
                 return laser.life > 0;
             });
 
+            // Update items
+            game.items = game.items.filter(item => {
+                if (!item.update()) return false;
+                
+                if (checkCollision(game.player, item)) {
+                    if (item.type === 'health') {
+                        game.player.health = Math.min(game.player.health + 30, game.player.maxHealth);
+                    } else if (item.type === 'grenade') {
+                        game.player.grenadeAmmo = Math.min(game.player.grenadeAmmo + 2, 5);
+                    } else if (item.type === 'laser') {
+                        game.player.laserAmmo = Math.min(game.player.laserAmmo + 1, 5);
+                    }
+                    createParticles(item.x + item.width / 2, item.y + item.height / 2, '#FFD700', 8);
+                    return false;
+                }
+                
+                return true;
+            });
+
             // Update grenades
             game.grenades = game.grenades.filter(grenade => {
                 grenade.x += grenade.vx;
-                grenade.vy += 0.5;
+                grenade.vy += 1.2;
                 grenade.y += grenade.vy;
+                grenade.rotation += 0.2;
                 grenade.timer--;
 
-                if (grenade.y > 450) {
-                    grenade.y = 450;
-                    grenade.vy = 0;
-                    grenade.vx *= 0.7;
+                if (grenade.y >= 460) {
+                    grenade.y = 460;
+                    if (grenade.bounces < 3 && Math.abs(grenade.vy) > 2) {
+                        grenade.vy = -grenade.vy * 0.5;
+                        grenade.vx *= 0.8;
+                        grenade.bounces++;
+                    } else {
+                        grenade.vy = 0;
+                        grenade.vx *= 0.9;
+                    }
+                }
+                
+                if (Math.abs(grenade.vx) > 0.1) {
+                    grenade.vx *= 0.98;
+                } else {
+                    grenade.vx = 0;
                 }
 
                 if (grenade.timer <= 0) {
@@ -1361,6 +1519,7 @@
                             if (enemy.health <= 0) {
                                 game.score += enemy.points;
                                 game.enemiesKilled++;
+                                dropItem(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
                             }
                         }
                     });
@@ -1499,13 +1658,23 @@
                     ctx.globalAlpha = 1;
                 });
 
+                // Draw items
+                game.items.forEach(item => item.draw(ctx));
+                
                 // Draw grenades
-                ctx.fillStyle = '#2F4F4F';
                 game.grenades.forEach(grenade => {
                     const screenX = grenade.x - game.camera.x;
-                    ctx.beginPath();
-                    ctx.arc(screenX, grenade.y, 6, 0, Math.PI * 2);
-                    ctx.fill();
+                    ctx.save();
+                    ctx.translate(screenX, grenade.y);
+                    ctx.rotate(grenade.rotation);
+                    
+                    ctx.fillStyle = '#2F4F4F';
+                    ctx.fillRect(-6, -6, 12, 12);
+                    
+                    ctx.fillStyle = '#FFD700';
+                    ctx.fillRect(-2, -8, 4, 3);
+                    
+                    ctx.restore();
                 });
 
                 // Draw particles
@@ -1561,6 +1730,7 @@
             game.lasers = [];
             game.grenades = [];
             game.particles = [];
+            game.items = [];
             game.platforms = generatePlatforms();
             game.vehicle = null;
             game.boss = null;
